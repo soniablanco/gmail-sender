@@ -20,12 +20,8 @@ const readline = require('readline');
 const {google} = require('googleapis');
 const util = require('util');
 
-// If modifying these scopes, delete token.json.
 const SCOPES = ['https://www.googleapis.com/auth/drive','https://www.googleapis.com/auth/gmail.send'];
-// The file token.json stores the user's access and refresh tokens, and is
-// created automatically when the authorization flow completes for the first
-// time.
-//const TOKEN_PATH = '/secrets/token.json';
+
 const SECRET_FOLDER = 'c:\\secrets\\'
 const APK_FOLDER = 'c:\\apk\\'
 const CREDENTIALS_PATH = SECRET_FOLDER + 'credentials.json';
@@ -34,12 +30,14 @@ const OUTPUT_PATH = APK_FOLDER + 'output.json';
 const CHANGELOG_PATH = APK_FOLDER + 'changelog';
 const REVISION_PATH = APK_FOLDER + 'revision';
 
-process.env.PROJECT_NAME='My Android APP'
-process.env.FROM_ADDRESS='mig.ruiz@gmail.com'
-process.env.TO_ADDRESSES='mig.ruiz+1@gmail.com'
+process.env.PROJECT_NAME ='My Android APP';
+process.env.FROM_ADDRESS ='sonia@gmail.com';
+process.env.TO_ADDRESSES ='mig.ruiz+1@gmail.com';
 
 
 (async function(){
+
+
 
   var readFileAsync = util.promisify(fs.readFile)
   var credentials= JSON.parse(await readFileAsync(CREDENTIALS_PATH))
@@ -51,25 +49,26 @@ process.env.TO_ADDRESSES='mig.ruiz+1@gmail.com'
   oAuth2Client.setCredentials(token);
 
 
-  var outputInfo=JSON.parse(await readFileAsync(OUTPUT_PATH))
+  var outputInfo=JSON.parse(await readFileAsync(OUTPUT_PATH))[0]
   var apkLocation = APK_FOLDER + outputInfo.path;
-  var uploadedFileInfo = await uploadFileAsync(oAuth2Client,apkLocation)
+  var uploadedFileInfo = await uploadFileAsync(oAuth2Client,apkLocation,outputInfo.apkInfo.outputFile)
   var result= await shareFile(oAuth2Client,uploadedFileInfo.data.id)
   var shareLink = 'https://drive.google.com/open?id='+ uploadedFileInfo.data.id
 
   var changeLog = await readFileAsync(CHANGELOG_PATH)
   var revision = await readFileAsync(REVISION_PATH)
 
-
+  var body = shareLink + '\n\n' + 'CHANGE LOG:'  + '\n' + changeLog
+  var htmlBody = body.split('\n').join('\n<br>\n')
   console.log(result)
   var emailParams={
-    fromName:process.env.PROJECT_NAME,
+    fromName:'TDS CI',
     fromAddress:process.env.FROM_ADDRESS,
     to :process.env.TO_ADDRESSES,
-    subject: process.env.PROJECT_NAME + ' ' + outputInfo.apkInfo.versionName + ' ('+ outputInfo.apkInfo.versionCode.toString() + ') SCM REV = ' + revision,
-    body: shareLink + '/r/n' + changeLog
+    subject: process.env.PROJECT_NAME + '  -  ' + outputInfo.apkInfo.versionName + '('+ outputInfo.apkInfo.versionCode.toString() + ')  -  SCM REV = ' + revision,
+    body: htmlBody
   }
-  var result =  await sendEmailv2(oAuth2Client,emailParams)
+  var result =  await sendEmail(oAuth2Client,emailParams)
   console.log(result)
 })();
 return;
@@ -132,10 +131,10 @@ async function sendEmail(auth,emailParams) {
 
 
 
-async function uploadFileAsync(auth,fileLocation){
+async function uploadFileAsync(auth,fileLocation,fileName){
     const drive = google.drive({version: 'v3', auth});
     var fileMetadata = {
-      'name': 'app.apk'
+      'name': fileName
     };
     var media = {
       mimeType: 'application/vnd.android.package-archive',
@@ -160,33 +159,3 @@ async function shareFile(auth,fileId){
 
 
 
-
-
-/**
- * Lists the names and IDs of up to 10 files.
- * @param {google.auth.OAuth2} auth An authorized OAuth2 client.
- */
-function listFiles(auth) {
-  const drive = google.drive({version: 'v3', auth});
-  drive.files.list({
-    pageSize: 10,
-    fields: 'nextPageToken, files(id, name)',
-  }, (err, res) => {
-    if (err) return console.log('The API returned an error: ' + err);
-    const files = res.data.files;
-    if (files.length) {
-      console.log('Files:');
-      files.map((file) => {
-        console.log(`${file.name} (${file.id})`);
-      });
-    } else {
-      console.log('No files found.');
-    }
-  });
-}
-// [END drive_quickstart]
-
-module.exports = {
-  SCOPES,
-  listFiles,
-};
