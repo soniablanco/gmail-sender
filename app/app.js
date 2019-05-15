@@ -20,17 +20,19 @@ const readline = require('readline');
 const {google} = require('googleapis');
 
 // If modifying these scopes, delete token.json.
-const SCOPES = ['https://www.googleapis.com/auth/drive'];
+const SCOPES = ['https://www.googleapis.com/auth/gmail.send'];
 // The file token.json stores the user's access and refresh tokens, and is
 // created automatically when the authorization flow completes for the first
 // time.
-const TOKEN_PATH = '/secrets/token.json';
+//const TOKEN_PATH = '/secrets/token.json';
+const TOKEN_PATH = 'c:\\secrets\\token.json';
 
 // Load client secrets from a local file.
-fs.readFile('/secrets/credentials.json', (err, content) => {
+//fs.readFile('/secrets/credentials.json', (err, content) => {
+fs.readFile('c:\\secrets\\credentials.json', (err, content) => {
   if (err) return console.log('Error loading client secret file:', err);
   // Authorize a client with credentials, then call the Google Drive API.
-  authorize(JSON.parse(content), uploadFile);
+  authorize(JSON.parse(content), sendSampleMail);
 });
 
 /**
@@ -87,37 +89,44 @@ function getAccessToken(oAuth2Client, callback) {
 }
 
 
-function uploadFile(auth){
-  const drive = google.drive({version: 'v3', auth});
-  var fileMetadata = {
-    'name': 'app.apk'
-  };
-  var media = {
-    mimeType: 'application/vnd.android.package-archive',
-    body: fs.createReadStream('file/app.apk')
-  };
-  drive.files.create({
-    resource: fileMetadata,
-    media: media,
-    fields: 'id'
-  }, function (err, file) {
+
+
+
+function sendSampleMail(auth) {
+  var gmailClass = google.gmail('v1');
+
+  var email_lines = [];
+
+  email_lines.push('From: "test" <mig.ruiz@gmail.com>');
+  email_lines.push('To: mig.ruiz+1@gmail.com');
+  email_lines.push('Content-type: text/html;charset=iso-8859-1');
+  email_lines.push('MIME-Version: 1.0');
+  email_lines.push('Subject: this would be the subject');
+  email_lines.push('');
+  email_lines.push('And this would be the content.<br/>');
+  email_lines.push('The body is in HTML so <b>we could even use bold</b>');
+
+  var email = email_lines.join('\r\n').trim();
+
+  var base64EncodedEmail = new Buffer(email).toString('base64');
+  base64EncodedEmail = base64EncodedEmail.replace(/\+/g, '-').replace(/\//g, '_');
+
+  gmailClass.users.messages.send({
+    auth: auth,
+    userId: 'me',
+    resource: {
+      raw: base64EncodedEmail
+    }
+  }, function (err, results) {
     if (err) {
-      throw new Error(err);
+      console.log('err:', err);
     } else {
-      const resource = {"role": "reader", "type": "domain","domain":process.env.DOMAIN};
-      drive.permissions.create({fileId:file.data.id, resource: resource}, (error, result)=>{
-          if (error) {
-            throw new Error(error);
-          }
-          //If this work then we know the permission for public share has been created 
-          var link= 'https://drive.google.com/open?id='+ file.data.id
-          console.log(link)
-      });
-
-
+      console.log(results);
     }
   });
 }
+
+
 
 
 /**
