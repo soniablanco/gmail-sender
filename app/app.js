@@ -26,46 +26,54 @@ const SCOPES = ['https://www.googleapis.com/auth/drive','https://www.googleapis.
 // created automatically when the authorization flow completes for the first
 // time.
 //const TOKEN_PATH = '/secrets/token.json';
-const CREDENTIALS_PATH = 'c:\\secrets\\credentials.json';
-const TOKEN_PATH = 'c:\\secrets\\token.json';
+const SECRET_FOLDER = 'c:\\secrets\\'
+const APK_FOLDER = 'c:\\apk\\'
+const CREDENTIALS_PATH = SECRET_FOLDER + 'credentials.json';
+const TOKEN_PATH = SECRET_FOLDER + 'token.json';
+const OUTPUT_PATH = APK_FOLDER + 'output.json';
+const CHANGELOG_PATH = APK_FOLDER + 'changelog';
+const REVISION_PATH = APK_FOLDER + 'revision';
 
+process.env.PROJECT_NAME='My Android APP'
+process.env.FROM_ADDRESS='mig.ruiz@gmail.com'
+process.env.TO_ADDRESSES='mig.ruiz+1@gmail.com'
 
 
 (async function(){
 
-  var credentials= await getCredentials()
+  var readFileAsync = util.promisify(fs.readFile)
+  var credentials= JSON.parse(await readFileAsync(CREDENTIALS_PATH))
   const oAuth2Client = new google.auth.OAuth2(credentials.installed.client_id, credentials.installed.client_secret, credentials.installed.redirect_uris[0]);  
-  var token = await getToken()
+  var token = JSON.parse(await readFileAsync(TOKEN_PATH))
   //var newToken = await getAccessToken(oAuth2Client)
   //console.log(JSON.stringify(newToken))
   //return;
   oAuth2Client.setCredentials(token);
 
 
-  var uploadedFileInfo = await uploadFileAsync(oAuth2Client,'c:\\secrets\\app.apk')
-  console.log(uploadedFileInfo)
-  return;
+  var outputInfo=JSON.parse(await readFileAsync(OUTPUT_PATH))
+  var apkLocation = APK_FOLDER + outputInfo.path;
+  var uploadedFileInfo = await uploadFileAsync(oAuth2Client,apkLocation)
+  var result= await shareFile(oAuth2Client,uploadedFileInfo.data.id)
+  var shareLink = 'https://drive.google.com/open?id='+ uploadedFileInfo.data.id
+
+  var changeLog = await readFileAsync(CHANGELOG_PATH)
+  var revision = await readFileAsync(REVISION_PATH)
+
+
+  console.log(result)
   var emailParams={
-    fromName:'Sonia',
-    fromAddress:'sonia@gmail.com',
-    to :"mig.ruiz@gmail.com",
-    subject: "subject",
-    body: "body"
+    fromName:process.env.PROJECT_NAME,
+    fromAddress:process.env.FROM_ADDRESS,
+    to :process.env.TO_ADDRESSES,
+    subject: process.env.PROJECT_NAME + ' ' + outputInfo.apkInfo.versionName + ' ('+ outputInfo.apkInfo.versionCode.toString() + ') SCM REV = ' + revision,
+    body: shareLink + '/r/n' + changeLog
   }
   var result =  await sendEmailv2(oAuth2Client,emailParams)
   console.log(result)
 })();
 return;
 
-
-async function getCredentials(){
-  var content =  await util.promisify(fs.readFile)(CREDENTIALS_PATH)
-  return JSON.parse(content)
-}
-async function getToken(){
-  var content =  await util.promisify(fs.readFile)(TOKEN_PATH)
-  return JSON.parse(content)
-}
 
 
 
@@ -94,7 +102,7 @@ function getAccessToken(oAuth2Client) {
   })
 }
 
-async function sendEmailv2(auth,emailParams) {
+async function sendEmail(auth,emailParams) {
     var gmailClass = google.gmail('v1');
 
     var email_lines = [];
@@ -141,20 +149,12 @@ async function uploadFileAsync(auth,fileLocation){
   }
 
   
-  function shareFile(auth){
-    return new Promise(function(resolve, reject) {
-      const drive = google.drive({version: 'v3', auth});
-      const resource = {"role": "reader", "type": "domain","domain":process.env.DOMAIN};
-      drive.permissions.create({fileId:file.data.id, resource: resource}, (error, result)=>{
-          if (error) {
-            reject(error)
-          }
-          var link= 'https://drive.google.com/open?id='+ file.data.id
-          console.log(link)
-          resolve(link)
-      });
-    });
-  }
+async function shareFile(auth,fileId){
+    const drive = google.drive({version: 'v3', auth});
+    //const resource = {"role": "reader", "type": "domain","domain":process.env.DOMAIN};
+    const resource = {"role": "reader", "type": "anyone"};
+    return drive.permissions.create({fileId:fileId, resource: resource});
+}
 
 
 
