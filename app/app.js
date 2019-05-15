@@ -92,7 +92,7 @@ function getAccessToken(oAuth2Client, callback) {
 
 
 
-function sendEmail(auth,emailParams,cb) {
+function sendEmail(auth,emailParams,onEmailSent) {
   var gmailClass = google.gmail('v1');
 
   var email_lines = [];
@@ -116,8 +116,47 @@ function sendEmail(auth,emailParams,cb) {
     resource: {
       raw: base64EncodedEmail
     }
-  }, cb);
+  }, function (err, results) {
+    if (err) {
+      throw new Error(err);
+    } else {
+      console.log(results)
+      onEmailSent()
+      }
+    });
 }
+
+
+function uploadFile(auth,fileLocation,onSharedLink){
+  const drive = google.drive({version: 'v3', auth});
+  var fileMetadata = {
+    'name': 'app.apk'
+  };
+  var media = {
+    mimeType: 'application/vnd.android.package-archive',
+    body: fs.createReadStream(fileLocation)
+  };
+  drive.files.create({
+    resource: fileMetadata,
+    media: media,
+    fields: 'id'
+  }, function (err, file) {
+    if (err) {
+      throw new Error(err);
+    } else {
+      const resource = {"role": "reader", "type": "domain","domain":process.env.DOMAIN};
+      drive.permissions.create({fileId:file.data.id, resource: resource}, (error, result)=>{
+          if (error) {
+            throw new Error(error);
+          }
+          //If this work then we know the permission for public share has been created 
+          var link= 'https://drive.google.com/open?id='+ file.data.id
+          console.log(link)
+          onSharedLink(link)
+      });
+
+
+
 
 
 
