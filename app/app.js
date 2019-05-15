@@ -90,70 +90,89 @@ function getAccessToken(oAuth2Client, callback) {
 
 
 
+function process(){
+  
+}
 
 
-function sendEmail(auth,emailParams,onEmailSent) {
-  var gmailClass = google.gmail('v1');
 
-  var email_lines = [];
+function sendEmail(auth,emailParams) {
+  return new Promise(function(resolve, reject) {
+    var gmailClass = google.gmail('v1');
 
-  email_lines.push('From: "'+ emailParams.fromName + '" <' + emailParams.fromAddress + '>');
-  email_lines.push('To: '+ emailParams.to);
-  email_lines.push('Content-type: text/html;charset=iso-8859-1');
-  email_lines.push('MIME-Version: 1.0');
-  email_lines.push('Subject: ' + emailParams.subject);
-  email_lines.push('');
-  email_lines.push(emailParams.body);
+    var email_lines = [];
 
-  var email = email_lines.join('\r\n').trim();
+    email_lines.push('From: "'+ emailParams.fromName + '" <' + emailParams.fromAddress + '>');
+    email_lines.push('To: '+ emailParams.to);
+    email_lines.push('Content-type: text/html;charset=iso-8859-1');
+    email_lines.push('MIME-Version: 1.0');
+    email_lines.push('Subject: ' + emailParams.subject);
+    email_lines.push('');
+    email_lines.push(emailParams.body);
 
-  var base64EncodedEmail = new Buffer(email).toString('base64');
-  base64EncodedEmail = base64EncodedEmail.replace(/\+/g, '-').replace(/\//g, '_');
+    var email = email_lines.join('\r\n').trim();
 
-  gmailClass.users.messages.send({
-    auth: auth,
-    userId: 'me',
-    resource: {
-      raw: base64EncodedEmail
-    }
-  }, function (err, results) {
-    if (err) {
-      throw new Error(err);
-    } else {
-      console.log(results)
-      onEmailSent()
+    var base64EncodedEmail = new Buffer(email).toString('base64');
+    base64EncodedEmail = base64EncodedEmail.replace(/\+/g, '-').replace(/\//g, '_');
+
+    gmailClass.users.messages.send({
+      auth: auth,
+      userId: 'me',
+      resource: {
+        raw: base64EncodedEmail
       }
-    });
+    }, function (err, results) {
+      if (err) {
+        reject(err)
+      } else {
+        console.log(results)
+        resolve(results)
+        }
+      });
+  });
 }
 
 
 function uploadFile(auth,fileLocation,onSharedLink){
-  const drive = google.drive({version: 'v3', auth});
-  var fileMetadata = {
-    'name': 'app.apk'
-  };
-  var media = {
-    mimeType: 'application/vnd.android.package-archive',
-    body: fs.createReadStream(fileLocation)
-  };
-  drive.files.create({
-    resource: fileMetadata,
-    media: media,
-    fields: 'id'
-  }, function (err, file) {
-    if (err) {
-      throw new Error(err);
-    } else {
+  return new Promise(function(resolve, reject) {
+    const drive = google.drive({version: 'v3', auth});
+    var fileMetadata = {
+      'name': 'app.apk'
+    };
+    var media = {
+      mimeType: 'application/vnd.android.package-archive',
+      body: fs.createReadStream(fileLocation)
+    };
+    drive.files.create({
+      resource: fileMetadata,
+      media: media,
+      fields: 'id'
+    }, function (err, file) {
+      if (err) {
+        reject(err)
+      } 
+      else {   
+        resolve(file)   
+        }
+      });
+  });
+  }
+
+  
+  function shareFile(auth){
+    return new Promise(function(resolve, reject) {
+      const drive = google.drive({version: 'v3', auth});
       const resource = {"role": "reader", "type": "domain","domain":process.env.DOMAIN};
       drive.permissions.create({fileId:file.data.id, resource: resource}, (error, result)=>{
           if (error) {
-            throw new Error(error);
+            reject(error)
           }
-          //If this work then we know the permission for public share has been created 
           var link= 'https://drive.google.com/open?id='+ file.data.id
           console.log(link)
-          onSharedLink(link)
+          resolve(link)
       });
+    });
+  }
 
 
 
