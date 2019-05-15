@@ -32,7 +32,7 @@ const TOKEN_PATH = 'c:\\secrets\\token.json';
 fs.readFile('c:\\secrets\\credentials.json', (err, content) => {
   if (err) return console.log('Error loading client secret file:', err);
   // Authorize a client with credentials, then call the Google Drive API.
-  authorize(JSON.parse(content), sendSampleMail);
+  authorize(JSON.parse(content), sendEmail);
 });
 
 /**
@@ -92,19 +92,18 @@ function getAccessToken(oAuth2Client, callback) {
 
 
 
-function sendSampleMail(auth) {
+function sendEmail(auth,emailParams,cb) {
   var gmailClass = google.gmail('v1');
 
   var email_lines = [];
 
-  email_lines.push('From: "test" <mig.ruiz@gmail.com>');
-  email_lines.push('To: mig.ruiz+1@gmail.com');
+  email_lines.push('From: "'+ emailParams.fromName + '" <' + emailParams.fromAddress + '>');
+  email_lines.push('To: '+ emailParams.to);
   email_lines.push('Content-type: text/html;charset=iso-8859-1');
   email_lines.push('MIME-Version: 1.0');
-  email_lines.push('Subject: this would be the subject');
+  email_lines.push('Subject: ' + emailParams.subject);
   email_lines.push('');
-  email_lines.push('And this would be the content.<br/>');
-  email_lines.push('The body is in HTML so <b>we could even use bold</b>');
+  email_lines.push(emailParams.body);
 
   var email = email_lines.join('\r\n').trim();
 
@@ -117,13 +116,7 @@ function sendSampleMail(auth) {
     resource: {
       raw: base64EncodedEmail
     }
-  }, function (err, results) {
-    if (err) {
-      console.log('err:', err);
-    } else {
-      console.log(results);
-    }
-  });
+  }, cb);
 }
 
 
