@@ -22,17 +22,22 @@ const util = require('util');
 
 const SCOPES = ['https://www.googleapis.com/auth/drive','https://www.googleapis.com/auth/gmail.send'];
 
-const SECRET_FOLDER = 'c:\\secrets\\'
-const APK_FOLDER = 'c:\\apk\\'
+const SECRET_FOLDER = '/secrets/';
+const APK_FOLDER = '/apk/';
+
+//process.env.PROJECT_NAME ='My Android APP';
+//process.env.FROM_ADDRESS ='sonia@gmail.com';
+//process.env.TO_ADDRESSES ='sonia+1@gmail.com';
+//const SECRET_FOLDER = 'c:\\secrets\\';
+//const APK_FOLDER = 'c:\\apk\\';
+
 const CREDENTIALS_PATH = SECRET_FOLDER + 'credentials.json';
 const TOKEN_PATH = SECRET_FOLDER + 'token.json';
 const OUTPUT_PATH = APK_FOLDER + 'output.json';
 const CHANGELOG_PATH = APK_FOLDER + 'changelog';
 const REVISION_PATH = APK_FOLDER + 'revision';
 
-process.env.PROJECT_NAME ='My Android APP';
-process.env.FROM_ADDRESS ='sonia@gmail.com';
-process.env.TO_ADDRESSES ='mig.ruiz+1@gmail.com';
+
 
 
 (async function(){
@@ -43,9 +48,11 @@ process.env.TO_ADDRESSES ='mig.ruiz+1@gmail.com';
   var credentials= JSON.parse(await readFileAsync(CREDENTIALS_PATH))
   const oAuth2Client = new google.auth.OAuth2(credentials.installed.client_id, credentials.installed.client_secret, credentials.installed.redirect_uris[0]);  
   var token = JSON.parse(await readFileAsync(TOKEN_PATH))
-  //var newToken = await getAccessToken(oAuth2Client)
-  //console.log(JSON.stringify(newToken))
-  //return;
+  if (process.argv[2]=='gen'){
+    var newToken = await getNewAccessToken(oAuth2Client)
+    console.log(JSON.stringify(newToken))
+    return;
+  }
   oAuth2Client.setCredentials(token);
 
 
@@ -76,7 +83,7 @@ return;
 
 
 
-function getAccessToken(oAuth2Client) {
+function getNewAccessToken(oAuth2Client) {
   return new Promise(function(resolve, reject) {
     const authUrl = oAuth2Client.generateAuthUrl({
       access_type: 'offline',
@@ -150,8 +157,8 @@ async function uploadFileAsync(auth,fileLocation,fileName){
   
 async function shareFile(auth,fileId){
     const drive = google.drive({version: 'v3', auth});
-    //const resource = {"role": "reader", "type": "domain","domain":process.env.DOMAIN};
-    const resource = {"role": "reader", "type": "anyone"};
+    const resource = {"role": "reader", "type": "domain","domain":process.env.DOMAIN};
+    //const resource = {"role": "reader", "type": "anyone"};
     return drive.permissions.create({fileId:fileId, resource: resource});
 }
 
