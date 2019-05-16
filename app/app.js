@@ -43,56 +43,63 @@ const REVISION_PATH = APK_FOLDER + 'revision';
 
 
 (async function(){
-
-
-
-  var readFileAsync = util.promisify(fs.readFile)
-  var credentials= JSON.parse(await readFileAsync(CREDENTIALS_PATH))
-  const oAuth2Client = new google.auth.OAuth2(credentials.installed.client_id, credentials.installed.client_secret, credentials.installed.redirect_uris[0]);  
-  var token = JSON.parse(await readFileAsync(TOKEN_PATH))
+  
+  const readFileAsync = util.promisify(fs.readFile)
+  const credentials= JSON.parse(await readFileAsync(CREDENTIALS_PATH))
+  const oAuth2Client = new google.auth.OAuth2(credentials.installed.client_id, credentials.installed.client_secret, credentials.installed.redirect_uris[0]);    
   if (process.argv[2]=='gen'){
-    var newToken = await getNewAccessToken(oAuth2Client)
+    const newToken = await getNewAccessToken(oAuth2Client)
     console.log(JSON.stringify(newToken))
     return;
   }
+  const token = JSON.parse(await readFileAsync(TOKEN_PATH))  
   oAuth2Client.setCredentials(token);
 
+  const outputInfo=JSON.parse(await readFileAsync(OUTPUT_PATH))[0]  
+  const revision = await readFileAsync(REVISION_PATH)
+  const changeLog = await readFileAsync(CHANGELOG_PATH);
+  const apkLocation = APK_FOLDER + outputInfo.path;  
+  const uniqueVersionInfo = outputInfo.apkInfo.versionName + '('+ outputInfo.apkInfo.versionCode.toString() + ')-SC(' + revision+')';
 
 
-  var projectFolderId = await getFolderId(oAuth2Client,process.env.PROJECT_NAME,rootFolderId)
-  if (projectFolderId==null){
-    projectFolderId =  await createFolderAsync(oAuth2Client,process.env.PROJECT_NAME,rootFolderId)
-  }
-  var variantFolderId = await getFolderId(oAuth2Client,process.env.VARIANT_NAME,projectFolderId)
-  if (variantFolderId==null){
-    variantFolderId =  await createFolderAsync(oAuth2Client,process.env.VARIANT_NAME,projectFolderId)
-  }
-  var outputInfo=JSON.parse(await readFileAsync(OUTPUT_PATH))[0]
-  var apkLocation = APK_FOLDER + outputInfo.path;  
-  var revision = await readFileAsync(REVISION_PATH)
-  var uniqueVersionInfo = outputInfo.apkInfo.versionName + '('+ outputInfo.apkInfo.versionCode.toString() + ')-SC(' + revision+')';
-  var fileNameToUse =  outputInfo.apkInfo.fullName + '-'+ uniqueVersionInfo + '.apk'
-  var fileId = await uploadFileAsync(oAuth2Client,apkLocation,fileNameToUse,variantFolderId)
-  var result= await shareFile(oAuth2Client,fileId)
-  var shareLink = 'https://drive.google.com/open?id='+ fileId
 
-  var changeLog = await readFileAsync(CHANGELOG_PATH)
 
-  var body = shareLink + '\n\n' + 'CHANGE LOG:'  + '\n' + changeLog
-  var htmlBody = body.split('\n').join('\n<br>\n')
-  console.log(result)
-  var emailParams={
-    fromName:'TDS CI',
-    fromAddress:process.env.FROM_ADDRESS,
-    to :process.env.TO_ADDRESSES,
-    subject: process.env.PROJECT_NAME + '  -  ' + uniqueVersionInfo,
-    body: htmlBody
-  }
+  const variantFolderId= await getVariantFolderId(oAuth2Client,rootFolderId);  
+  const fileNameToUse =  outputInfo.apkInfo.fullName + '-'+ uniqueVersionInfo + '.apk'
+  const fileId = await uploadFileAsync(oAuth2Client,apkLocation,fileNameToUse,variantFolderId)
+  await shareFile(oAuth2Client,fileId)
+  var emailParams = getEmailParameters(fileId, changeLog, uniqueVersionInfo);
   var result =  await sendEmail(oAuth2Client,emailParams)
   console.log(result)
 })();
 return;
 
+
+function getEmailParameters(fileId, changeLog,uniqueVersionInfo) {
+  const shareLink = 'https://drive.google.com/open?id=' + fileId; 
+  const body = shareLink + '\n\n' + 'CHANGE LOG:' + '\n' + changeLog;
+  const htmlBody = body.split('\n').join('\n<br>\n');
+  const emailParams = {
+    fromName: 'TDS CI',
+    fromAddress: process.env.FROM_ADDRESS,
+    to: process.env.TO_ADDRESSES,
+    subject: process.env.PROJECT_NAME + '  -  ' + uniqueVersionInfo,
+    body: htmlBody
+  };
+  return emailParams;
+}
+
+async function getVariantFolderId(auth,rootFolderId){
+  var projectFolderId = await getFolderId(auth,process.env.PROJECT_NAME,rootFolderId)
+  if (projectFolderId==null){
+    projectFolderId =  await createFolderAsync(auth,process.env.PROJECT_NAME,rootFolderId)
+  }
+  var variantFolderId = await getFolderId(auth,process.env.VARIANT_NAME,projectFolderId)
+  if (variantFolderId==null){
+    variantFolderId =  await createFolderAsync(auth,process.env.VARIANT_NAME,projectFolderId)
+  }
+  return variantFolderId;
+}
 
 async function getFolderId(auth,folderName,parentFolderId){
   const drive = google.drive({version: 'v3', auth});
