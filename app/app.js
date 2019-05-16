@@ -68,13 +68,15 @@ const REVISION_PATH = APK_FOLDER + 'revision';
     variantFolderId =  await createFolderAsync(oAuth2Client,process.env.VARIANT_NAME,projectFolderId)
   }
   var outputInfo=JSON.parse(await readFileAsync(OUTPUT_PATH))[0]
-  var apkLocation = APK_FOLDER + outputInfo.path;
-  var fileId = await uploadFileAsync(oAuth2Client,apkLocation,outputInfo.apkInfo.outputFile,variantFolderId)
+  var apkLocation = APK_FOLDER + outputInfo.path;  
+  var revision = await readFileAsync(REVISION_PATH)
+  var uniqueVersionInfo = outputInfo.apkInfo.versionName + '('+ outputInfo.apkInfo.versionCode.toString() + ')-SC(' + revision+')';
+  var fileNameToUse =  outputInfo.apkInfo.fullName + '-'+ uniqueVersionInfo + '.apk'
+  var fileId = await uploadFileAsync(oAuth2Client,apkLocation,fileNameToUse,variantFolderId)
   var result= await shareFile(oAuth2Client,fileId)
   var shareLink = 'https://drive.google.com/open?id='+ fileId
 
   var changeLog = await readFileAsync(CHANGELOG_PATH)
-  var revision = await readFileAsync(REVISION_PATH)
 
   var body = shareLink + '\n\n' + 'CHANGE LOG:'  + '\n' + changeLog
   var htmlBody = body.split('\n').join('\n<br>\n')
@@ -83,7 +85,7 @@ const REVISION_PATH = APK_FOLDER + 'revision';
     fromName:'TDS CI',
     fromAddress:process.env.FROM_ADDRESS,
     to :process.env.TO_ADDRESSES,
-    subject: process.env.PROJECT_NAME + '  -  ' + outputInfo.apkInfo.versionName + '('+ outputInfo.apkInfo.versionCode.toString() + ')  -  SCM REV = ' + revision,
+    subject: process.env.PROJECT_NAME + '  -  ' + uniqueVersionInfo,
     body: htmlBody
   }
   var result =  await sendEmail(oAuth2Client,emailParams)
