@@ -66,7 +66,7 @@ const REVISION_PATH = APK_FOLDER + 'revision';
 
   const variantFolderId= await getVariantFolderId(oAuth2Client,rootFolderId);  
   const fileNameToUse =  outputInfo.apkInfo.fullName + '-'+ uniqueVersionInfo + '.apk'
-  const fileId = await uploadFileAsync(oAuth2Client,apkLocation,fileNameToUse,variantFolderId)
+  const fileId = await uploadFileAsync(oAuth2Client,apkLocation,fileNameToUse,changeLog.toString(), variantFolderId)
   await shareFile(oAuth2Client,fileId)
   var emailParams = getEmailParameters(fileId, changeLog, uniqueVersionInfo);
   var result =  await sendEmail(oAuth2Client,emailParams)
@@ -180,10 +180,11 @@ async function createFolderAsync(auth,folderName,parentFolderId){
 
 
 
-async function uploadFileAsync(auth,fileLocation,fileName,driveFolderId){
+async function uploadFileAsync(auth,fileLocation,fileName,description,driveFolderId){
     const drive = google.drive({version: 'v3', auth});
     var fileMetadata = {
       'name': fileName,
+      'description': description,
       'parents':[driveFolderId]
     };
     var media = {
