@@ -22,14 +22,16 @@ const util = require('util');
 
 const SCOPES = ['https://www.googleapis.com/auth/drive','https://www.googleapis.com/auth/gmail.send'];
 
-const SECRET_FOLDER = '/secrets/';
-const APK_FOLDER = '/apk/';
+//const SECRET_FOLDER = '/secrets/';
+//const APK_FOLDER = '/apk/';
 
-//process.env.PROJECT_NAME ='My Android APP';
-//process.env.FROM_ADDRESS ='sonia@gmail.com';
-//process.env.TO_ADDRESSES ='sonia+1@gmail.com';
-//const SECRET_FOLDER = 'c:\\secrets\\';
-//const APK_FOLDER = 'c:\\apk\\';
+process.env.PROJECT_NAME ='My Android APP';
+process.env.VARIANT_NAME ='Internal Test';
+process.env.FROM_ADDRESS ='sonia@gmail.com';
+process.env.TO_ADDRESSES ='sonia+1@gmail.com';
+const SECRET_FOLDER = 'c:\\secrets\\';
+const APK_FOLDER = 'c:\\apk\\';
+const rootFolderId='1QxynwsTyZm-4uD9BYA7qXNoC1PjfqZtA'
 
 const CREDENTIALS_PATH = SECRET_FOLDER + 'credentials.json';
 const TOKEN_PATH = SECRET_FOLDER + 'token.json';
@@ -56,11 +58,20 @@ const REVISION_PATH = APK_FOLDER + 'revision';
   oAuth2Client.setCredentials(token);
 
 
+
+  var projectFolderId = await getFolderId(oAuth2Client,process.env.PROJECT_NAME,rootFolderId)
+  if (projectFolderId==null){
+    projectFolderId =  await createFolderAsync(oAuth2Client,process.env.PROJECT_NAME,rootFolderId)
+  }
+  var variantFolderId = await getFolderId(oAuth2Client,process.env.VARIANT_NAME,projectFolderId)
+  if (variantFolderId==null){
+    variantFolderId =  await createFolderAsync(oAuth2Client,process.env.VARIANT_NAME,projectFolderId)
+  }
   var outputInfo=JSON.parse(await readFileAsync(OUTPUT_PATH))[0]
   var apkLocation = APK_FOLDER + outputInfo.path;
-  var uploadedFileInfo = await uploadFileAsync(oAuth2Client,apkLocation,outputInfo.apkInfo.outputFile)
-  var result= await shareFile(oAuth2Client,uploadedFileInfo.data.id)
-  var shareLink = 'https://drive.google.com/open?id='+ uploadedFileInfo.data.id
+  var fileId = await uploadFileAsync(oAuth2Client,apkLocation,outputInfo.apkInfo.outputFile,variantFolderId)
+  var result= await shareFile(oAuth2Client,fileId)
+  var shareLink = 'https://drive.google.com/open?id='+ fileId
 
   var changeLog = await readFileAsync(CHANGELOG_PATH)
   var revision = await readFileAsync(REVISION_PATH)
@@ -81,7 +92,16 @@ const REVISION_PATH = APK_FOLDER + 'revision';
 return;
 
 
+async function getFolderId(auth,folderName,parentFolderId){
+  const drive = google.drive({version: 'v3', auth});
+  var params = {    
+    'q': "name = '" + folderName +"' and '" + parentFolderId +"' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
 
+  };
+  var result = await drive.files.list(params)
+  var files = result.data.files
+  return files.length==0? null: files[0].id
+}
 
 function getNewAccessToken(oAuth2Client) {
   return new Promise(function(resolve, reject) {
@@ -134,31 +154,46 @@ async function sendEmail(auth,emailParams) {
     });
 }
 
+async function createFolderAsync(auth,folderName,parentFolderId){
+  const drive = google.drive({version: 'v3', auth});
+  var fileMetadata = {
+    'name': folderName,
+    'parents':[parentFolderId],
+    'mimeType': 'application/vnd.google-apps.folder'
+
+  };
+  var result =  await drive.files.create({
+    resource: fileMetadata,
+    fields: 'id'
+  });
+  return result.data.id
+}
 
 
 
-
-async function uploadFileAsync(auth,fileLocation,fileName){
+async function uploadFileAsync(auth,fileLocation,fileName,driveFolderId){
     const drive = google.drive({version: 'v3', auth});
     var fileMetadata = {
-      'name': fileName
+      'name': fileName,
+      'parents':[driveFolderId]
     };
     var media = {
       mimeType: 'application/vnd.android.package-archive',
       body: fs.createReadStream(fileLocation)
     };
-    return await drive.files.create({
+    var result = await drive.files.create({
       resource: fileMetadata,
       media: media,
       fields: 'id'
     });
+    return result.data.id;
   }
 
   
 async function shareFile(auth,fileId){
     const drive = google.drive({version: 'v3', auth});
-    const resource = {"role": "reader", "type": "domain","domain":process.env.DOMAIN};
-    //const resource = {"role": "reader", "type": "anyone"};
+    //const resource = {"role": "reader", "type": "domain","domain":process.env.DOMAIN};
+    const resource = {"role": "reader", "type": "anyone"};
     return drive.permissions.create({fileId:fileId, resource: resource});
 }
 
